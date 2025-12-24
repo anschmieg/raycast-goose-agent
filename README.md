@@ -59,13 +59,36 @@ If Goose gets stuck in a loop or you want to interrupt it:
 1. While in the "Ask Goose" view, press Cmd+K
 2. Or select "Stop Goose" from the action panel
 
-## Development
+## Installation & Setup
+
+### For End Users
+
+This extension is not yet published to the Raycast Store. To use it, you'll need to import it as a local extension:
+
+1. Clone this repository:
+   ```bash
+   git clone https://github.com/anschmieg/raycast-goose-agent.git
+   cd raycast-goose-agent
+   ```
+
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+
+3. Open Raycast and run the "Import Extension" command (or use the Raycast Store → `⌘,` → Extensions → `+` → Import Extension)
+
+4. Select the `raycast-goose-agent` directory
+
+5. Raycast will build and install the extension automatically
+
+### For Developers
 
 ```bash
 # Install dependencies
 npm install
 
-# Run in development mode
+# Run in development mode (opens in Raycast)
 npm run dev
 
 # Build the extension
@@ -74,6 +97,12 @@ npm run build
 # Lint and fix code
 npm run fix-lint
 ```
+
+**Note:** After pulling updates from git, you may need to reload the extension in Raycast:
+- Open Raycast Settings (⌘,)
+- Go to Extensions
+- Find "Goose Bridge" and click the reload icon
+- Or use the "Reload Extension" command in Raycast
 
 ## License
 
