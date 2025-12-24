@@ -1,10 +1,10 @@
 {
   "$schema": "https://www.raycast.com/schemas/extension.json",
-  "name": "goose-agent",
-  "title": "goose agent",
-  "description": "A Raycast bridge for the goose CLI AI agent.",
+  "name": "goose-bridge",
+  "title": "Goose Bridge",
+  "description": "A Raycast bridge for the Goose CLI AI agent.",
   "icon": "extension-icon.png",
-  "author": "fjqdrrj4ns",
+  "author": "anschmieg",
   "platforms": [
     "macOS",
     "Windows"
@@ -15,65 +15,26 @@
   "license": "MIT",
   "commands": [
     {
-      "name": "show-list-and-details-command-example",
-      "title": "Show List and Details command example",
-      "subtitle": "subtitle example",
-      "description": "description example",
+      "name": "index",
+      "title": "Ask Goose",
+      "subtitle": "AI Agent",
+      "description": "Ask Goose AI agent a question and see the response in real-time",
+      "mode": "view",
+      "arguments": [
+        {
+          "name": "query",
+          "placeholder": "What would you like to ask?",
+          "type": "text",
+          "required": false
+        }
+      ]
+    },
+    {
+      "name": "sessions",
+      "title": "List Sessions",
+      "subtitle": "Goose Sessions",
+      "description": "View and resume previous Goose sessions",
       "mode": "view"
-    },
-    {
-      "name": "show-list-command-example",
-      "title": "Show List command example",
-      "subtitle": "subtitle example",
-      "description": "description example",
-      "mode": "view"
-    },
-    {
-      "name": "show-detail-command-example",
-      "title": "Show Detail command example",
-      "subtitle": "subtitle example",
-      "description": "description example",
-      "mode": "view"
-    },
-    {
-      "name": "submit-form-command-example",
-      "title": "Submit form command example",
-      "subtitle": "subtitle example",
-      "description": "description example",
-      "mode": "view"
-    },
-    {
-      "name": "ai-command-example",
-      "title": "AI command example",
-      "subtitle": "subtitle example",
-      "description": "description example",
-      "mode": "view"
-    },
-    {
-      "name": "show-grid-command-example",
-      "title": "Show Grid command example",
-      "subtitle": "subtitle example",
-      "description": "description example",
-      "mode": "view"
-    },
-    {
-      "name": "run-script-example",
-      "title": "Run Script example",
-      "subtitle": "subtitle example",
-      "description": "description example",
-      "mode": "no-view"
-    }
-  ],
-  "tools": [
-    {
-      "name": "tool-with-confirgation-example",
-      "title": "Tool with Confirgation example",
-      "description": "description example"
-    },
-    {
-      "name": "tool-blank-example",
-      "title": "Tool Blank example",
-      "description": "description example"
     }
   ],
   "dependencies": {
