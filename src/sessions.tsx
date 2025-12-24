@@ -2,6 +2,7 @@ import { List, ActionPanel, Action, showToast, Toast, Icon, Color, Form } from "
 import { useState, useEffect } from "react";
 import { exec } from "child_process";
 import { promisify } from "util";
+import { escapeShellArg, findGooseBinary } from "./utils";
 
 const execAsync = promisify(exec);
 
@@ -17,23 +18,6 @@ interface ResumeSessionProps {
   sessionId: string;
   goosePath: string;
   onResume: () => void;
-}
-
-// Find the goose binary in common installation paths
-async function findGooseBinary(): Promise<string> {
-  const paths = ["/usr/local/bin/goose", "/opt/homebrew/bin/goose", "/usr/bin/goose"];
-
-  for (const path of paths) {
-    try {
-      await execAsync(`test -x ${path}`);
-      return path;
-    } catch {
-      // Binary not found at this path, try next
-    }
-  }
-
-  // Fallback to PATH
-  return "goose";
 }
 
 function ResumeSessionForm({ sessionId, goosePath, onResume }: ResumeSessionProps) {
@@ -55,7 +39,7 @@ function ResumeSessionForm({ sessionId, goosePath, onResume }: ResumeSessionProp
     });
 
     try {
-      const command = `${goosePath} run --session-id ${sessionId} --resume --text "${input.replace(/"/g, '\\"')}"`;
+      const command = `${goosePath} run --session-id ${escapeShellArg(sessionId)} --resume --text ${escapeShellArg(input)}`;
       await execAsync(command, {
         timeout: 300000, // 5 minute timeout
       });

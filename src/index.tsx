@@ -3,28 +3,12 @@ import { useExec } from "@raycast/utils";
 import { useState, useEffect } from "react";
 import { exec } from "child_process";
 import { promisify } from "util";
+import { escapeShellArg, findGooseBinary } from "./utils";
 
 const execAsync = promisify(exec);
 
 interface Arguments {
   query?: string;
-}
-
-// Find the goose binary in common installation paths
-async function findGooseBinary(): Promise<string> {
-  const paths = ["/usr/local/bin/goose", "/opt/homebrew/bin/goose", "/usr/bin/goose"];
-
-  for (const path of paths) {
-    try {
-      await execAsync(`test -x ${path}`);
-      return path;
-    } catch {
-      // Binary not found at this path, try next
-    }
-  }
-
-  // Fallback to PATH
-  return "goose";
 }
 
 // Kill any running goose processes
@@ -55,8 +39,8 @@ async function speakOutput(text: string) {
     const lastLine = lines[lines.length - 1];
 
     if (lastLine && lastLine.trim()) {
-      // Execute say command in background
-      exec(`say "${lastLine.replace(/"/g, '\\"')}"`);
+      // Execute say command in background with proper escaping
+      exec(`say ${escapeShellArg(lastLine)}`);
     }
   } catch (error) {
     console.error("Failed to speak output:", error);
@@ -85,10 +69,10 @@ export default function Command({ arguments: args }: LaunchProps<{ arguments: Ar
           "# Error\n\nGoose binary not found. Please ensure Goose is installed.\n\nInstall via: `pip install goose-ai`",
         );
       });
-  }, []);
+  }, [query]);
 
   // Build the command when we have both goosePath and query
-  const command = goosePath && query ? `${goosePath} run --text "${query.replace(/"/g, '\\"')}"` : undefined;
+  const command = goosePath && query ? `${goosePath} run --text ${escapeShellArg(query)}` : undefined;
 
   const { isLoading, data, error } = useExec(command || "echo", [], {
     shell: true,
