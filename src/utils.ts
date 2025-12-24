@@ -22,6 +22,7 @@ export async function findGooseBinary(): Promise<string> {
 
   for (const path of paths) {
     try {
+      // Note: path is a trusted constant from the array above, not user input
       await execAsync(`test -x ${path}`);
       return path;
     } catch {

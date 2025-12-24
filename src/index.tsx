@@ -14,12 +14,17 @@ interface Arguments {
 // Kill any running goose processes
 async function killGooseProcesses() {
   try {
-    const { stdout } = await execAsync("pgrep -f 'goose run'");
+    // Use more specific pattern to avoid killing unrelated processes
+    const { stdout } = await execAsync("pgrep -f '/goose run'");
     const pids = stdout.trim().split("\n").filter(Boolean);
 
     for (const pid of pids) {
       try {
-        await execAsync(`kill ${pid}`);
+        // Validate PID is a number before killing
+        const numPid = parseInt(pid.trim(), 10);
+        if (!isNaN(numPid) && numPid > 0) {
+          await execAsync(`kill ${numPid}`);
+        }
       } catch {
         // Process may have already exited
       }
