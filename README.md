@@ -7,20 +7,27 @@ A Raycast extension that provides a GUI bridge for the [Goose CLI Agent](https:/
 ### Ask Goose Command
 - **Form-based input**: Type your question directly in the Raycast interface (or use deeplinks)
 - **Real-time streaming**: See Goose's thoughts and tool calls as they happen
-- **Voice feedback**: Hear the final output using macOS `say` command
+- **Toggleable voice feedback**: Optionally hear the final output using macOS `say` command
+- **Intelligent error messages**: Friendly explanations for common issues (DB conflicts, missing models, etc.)
 - **Kill switch**: Stop runaway Goose processes with Cmd+Shift+X
 - **Deeplink support**: Integrate with other tools using Raycast deeplinks
 - **Comprehensive diagnostics**: See the exact command being run and all output (stdout/stderr)
+- **Fast startup**: Binary path is cached after first detection
 
 ### Session Management
 - **List sessions**: View all your previous Goose interactions
-- **Resume sessions**: Continue previous conversations with new input
+- **Resume sessions**: Continue previous conversations with new input via a dedicated form
 - **Session metadata**: See session IDs, dates, and last prompts
+- **Robust parsing**: Handles various session JSON formats
+- **Live output**: See real-time output when resuming sessions
 
 ### Configuration
-- **Auto-detection**: Automatically finds the pip-installed Goose binary
+- **Smart auto-detection**: Automatically finds the pip-installed Goose binary (not the Go migration tool)
+- **Binary caching**: Validated binary path is cached for instant subsequent startups
 - **Custom path**: Configure a custom Goose binary path in preferences
-- **Binary validation**: Ensures you're using the AI agent, not the Go migration tool
+- **Binary validation**: Probes with 'session list' command to ensure it's the AI agent
+- **Reset cache**: Clear cached binary path with Cmd+Shift+R when needed
+- **Voice toggle**: Enable/disable voice output in preferences (default: enabled)
 
 ## Prerequisites
 
@@ -32,6 +39,7 @@ pip install goose-ai
 
 The extension will automatically detect Goose in these locations (in order of preference):
 - `$HOME/.local/bin/goose` (common pip user install)
+- `$HOME/Library/Python/3.12/bin/goose` (macOS pip user install, Python 3.12)
 - `$HOME/Library/Python/3.11/bin/goose` (macOS pip user install, Python 3.11)
 - `$HOME/Library/Python/3.10/bin/goose` (macOS pip user install, Python 3.10)
 - `$HOME/Library/Python/3.9/bin/goose` (macOS pip user install, Python 3.9)
@@ -40,16 +48,16 @@ The extension will automatically detect Goose in these locations (in order of pr
 - `/usr/bin/goose` (system install)
 - `goose` in your `PATH`
 
-**Note:** The extension validates each binary to ensure it responds to `--version` properly.
+**Note:** The extension validates each binary by probing with the `session list` command to distinguish the Goose AI agent from the Go database migration tool with the same name. The validated path is cached for fast subsequent startups.
 
 ## Usage
 
 ### Ask Goose
 1. Open Raycast (Cmd+Space or your configured hotkey)
 2. Type "Ask Goose"
-3. Enter your query in the form
+3. Enter your query in the form and press Enter or click "Ask Goose"
 4. Watch as Goose processes your request in real-time
-5. Hear the final output spoken aloud
+5. Optionally hear the final output spoken aloud (if voice output is enabled)
 
 **Or use a deeplink:**
 - Provide the query as an argument via deeplink (see below)
@@ -69,19 +77,57 @@ This is particularly useful for integration with voice assistants like Spokenly.
 1. Open Raycast
 2. Type "List Sessions"
 3. Browse your previous Goose sessions
-4. Select a session and choose "Resume Session" to continue the conversation
+4. Select a session and choose "Resume Session"
+5. Enter your message in the form and press Enter or click "Resume Session"
+6. Watch the session resume with real-time output
 
-### Stop Goose
+### Common Actions
+
+**Stop Goose**
 If Goose gets stuck in a loop or you want to interrupt it:
-1. While in the "Ask Goose" result view, press Cmd+Shift+X
-2. Or select "Stop Goose" from the action panel
+- While viewing output, press Cmd+Shift+X
+- Or select "Stop Goose" from the action panel
+
+**Reset Binary Cache**
+If the wrong binary was detected or you've updated Goose:
+- Press Cmd+Shift+R in any view
+- Or select "Reset Binary Cache" from the action panel
+- Then reload the command to re-detect the binary
+
+**Toggle Voice Output**
+To enable or disable voice feedback:
+1. Open Raycast Settings (⌘,)
+2. Go to Extensions → Goose Bridge
+3. Toggle "Enable Voice Output" preference
 
 ### Custom Binary Path
 If Goose is installed in a non-standard location:
 1. Open Raycast Settings (⌘,)
 2. Go to Extensions → Goose Bridge
 3. Set the "Custom Goose Path" preference
-4. The extension will use this path first
+4. The extension will use and validate this path first
+
+## Troubleshooting
+
+### "Wrong binary detected" error
+If you see "flag provided but not defined" errors, the extension found the Go database migration tool instead of the Goose AI agent:
+
+1. Install the correct Goose: `pip install goose-ai`
+2. Press Cmd+Shift+R to reset the binary cache
+3. Reload the command
+
+### "Table schema_version already exists" error
+This is a database migration conflict. To fix:
+
+1. Delete the Goose database: `rm ~/.config/goose/goose.db`
+2. Run your query again
+
+### "No endpoints found" or 404 errors
+The configured AI model is unavailable:
+
+1. Check your Goose configuration file
+2. Update to a different model that's currently available
+3. See the Goose AI documentation for supported models
 
 ## Installation & Setup
 
