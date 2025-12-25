@@ -13,7 +13,7 @@ import {
 import { useState, useEffect } from "react";
 import { execFile, spawn } from "child_process";
 import { promisify } from "util";
-import { findGooseBinary, clearGoosePathCache } from "./utils";
+import { findGooseBinary, clearGoosePathCache, SESSION_COMMAND_TIMEOUT } from "./utils";
 
 const execFileAsync = promisify(execFile);
 
@@ -221,7 +221,7 @@ export default function Command() {
 
         console.log(`Executing: ${goosePath} ${args.join(" ")}`);
 
-        const { stdout, stderr } = await execFileAsync(goosePath, args, { timeout: 10000 });
+        const { stdout, stderr } = await execFileAsync(goosePath, args, { timeout: SESSION_COMMAND_TIMEOUT });
 
         if (stderr) {
           console.warn("Goose session list stderr:", stderr);
@@ -312,7 +312,7 @@ export default function Command() {
 
     try {
       const args = ["session", "list", "--format", "json"];
-      const { stdout, stderr } = await execFileAsync(goosePath, args, { timeout: 10000 });
+      const { stdout, stderr } = await execFileAsync(goosePath, args, { timeout: SESSION_COMMAND_TIMEOUT });
 
       if (stderr) {
         console.warn("Goose session list stderr:", stderr);

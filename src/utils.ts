@@ -7,6 +7,7 @@ const execFileAsync = promisify(execFile);
 const accessAsync = promisify(access);
 
 const GOOSE_PATH_CACHE_KEY = "cached_goose_path";
+const SESSION_COMMAND_TIMEOUT = 10000; // 10 seconds
 
 interface Preferences {
   goosePath?: string;
@@ -20,7 +21,9 @@ interface Preferences {
 export async function validateGooseBinary(binaryPath: string): Promise<boolean> {
   try {
     // Try to run 'goose session list' - only the AI agent supports this
-    const { stdout, stderr } = await execFileAsync(binaryPath, ["session", "list"], { timeout: 5000 });
+    const { stdout, stderr } = await execFileAsync(binaryPath, ["session", "list"], {
+      timeout: SESSION_COMMAND_TIMEOUT,
+    });
     const output = (stdout + stderr).toLowerCase();
 
     console.log(`Goose validation for ${binaryPath}:`, output.substring(0, 200));
@@ -43,11 +46,17 @@ export async function validateGooseBinary(binaryPath: string): Promise<boolean> 
       return false;
     }
 
+    // Check for ENOENT error code specifically
+    if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
+      console.log(`Binary at ${binaryPath} not found (ENOENT)`);
+      return false;
+    }
+
     // Other errors might be transient or expected (e.g., no sessions yet)
     console.log(`Binary at ${binaryPath} validation uncertain:`, errorMsg);
     // If the command exists but fails for other reasons, it might still be valid
     // We'll be conservative and accept it if it's not clearly the wrong tool
-    return !errorMsg.includes("ENOENT");
+    return true;
   }
 }
 
@@ -192,3 +201,8 @@ export async function findGooseBinary(useCache = true): Promise<string> {
 export function getPrefs(): Preferences {
   return getPreferenceValues<Preferences>();
 }
+
+/**
+ * Export the session command timeout for use in other files
+ */
+export { SESSION_COMMAND_TIMEOUT };
