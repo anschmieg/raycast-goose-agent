@@ -45,6 +45,15 @@
       "title": "Custom Goose Path",
       "description": "Path to the Goose AI binary (leave empty for auto-detection)",
       "placeholder": "/path/to/goose"
+    },
+    {
+      "name": "enableVoiceOutput",
+      "type": "checkbox",
+      "required": false,
+      "title": "Enable Voice Output",
+      "description": "Speak the final output using macOS 'say' command",
+      "default": true,
+      "label": "Enable voice output"
     }
   ],
   "dependencies": {

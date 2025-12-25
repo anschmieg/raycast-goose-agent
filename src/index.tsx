@@ -7,11 +7,12 @@ import {
   Toast,
   LaunchProps,
   useNavigation,
+  Icon,
 } from "@raycast/api";
 import { useState, useEffect } from "react";
 import { spawn, execFile } from "child_process";
 import { promisify } from "util";
-import { findGooseBinary, validateGooseBinary } from "./utils";
+import { findGooseBinary, validateGooseBinary, clearGoosePathCache, getPrefs } from "./utils";
 
 const execFileAsync = promisify(execFile);
 
@@ -47,8 +48,13 @@ async function killGooseProcesses() {
   }
 }
 
-// Speak the final output using macOS say command
+// Speak the final output using macOS say command (if enabled)
 async function speakOutput(text: string) {
+  const prefs = getPrefs();
+  if (!prefs.enableVoiceOutput) {
+    return;
+  }
+
   try {
     const lines = text.trim().split("\n");
     const lastLine = lines[lines.length - 1];
@@ -60,6 +66,29 @@ async function speakOutput(text: string) {
   } catch (error) {
     console.error("Failed to speak output:", error);
   }
+}
+
+// Parse and provide user-friendly error messages
+function getFriendlyErrorMessage(stderr: string): string {
+  if (stderr.includes("table schema_version already exists")) {
+    return "**Database Issue**: Goose encountered a database migration conflict. This usually happens when the Goose database needs to be reset.\n\n**Suggestion**: Try deleting the Goose database file (usually `~/.config/goose/goose.db`) and run again.";
+  }
+
+  if (stderr.includes("No endpoints found") || stderr.includes("status 404")) {
+    const modelMatch = stderr.match(/No endpoints found for ([^\s]+)/);
+    const model = modelMatch ? modelMatch[1] : "unknown model";
+    return `**API Error**: The AI model "${model}" is not available or has been removed.\n\n**Suggestion**: The model may have been deprecated. Try configuring Goose to use a different model in your Goose configuration file.`;
+  }
+
+  if (stderr.includes("Request failed")) {
+    return "**API Connection Error**: Failed to connect to the AI provider.\n\n**Suggestion**: Check your internet connection and API credentials in your Goose configuration.";
+  }
+
+  if (stderr.includes("flag provided but not defined")) {
+    return "**Wrong Binary Detected**: The system found the Go database migration tool instead of the Goose AI agent.\n\n**Suggestion**: Use the 'Reset Binary Cache' action and ensure Goose AI is installed via `pip install goose-ai`.";
+  }
+
+  return null;
 }
 
 interface GooseResultProps {
@@ -82,7 +111,9 @@ function GooseResult({ query, goosePath }: GooseResultProps) {
         // Validate the binary before running
         const isValid = await validateGooseBinary(goosePath);
         if (!isValid) {
-          throw new Error(`Invalid Goose binary at ${goosePath}`);
+          throw new Error(
+            `Invalid Goose binary at ${goosePath}. This appears to be the Go migration tool. Please install Goose AI via 'pip install goose-ai'.`,
+          );
         }
 
         // Use spawn for real-time output streaming
@@ -114,8 +145,15 @@ function GooseResult({ query, goosePath }: GooseResultProps) {
           const text = data.toString();
           stderrData += text;
           setErrorOutput((prev) => prev + text);
-          // Also show stderr in the output for debugging
-          setMarkdown((prev) => prev + `\n\n**Error/Warning:**\n\`\`\`\n${text}\n\`\`\`\n\n`);
+
+          // Check if this is a friendly error we can explain
+          const friendlyError = getFriendlyErrorMessage(stderrData);
+          if (friendlyError) {
+            setMarkdown((prev) => prev + `\n\n${friendlyError}\n\n`);
+          } else {
+            // Show raw stderr for other errors
+            setMarkdown((prev) => prev + `\n\n**Error/Warning:**\n\`\`\`\n${text}\n\`\`\`\n\n`);
+          }
         });
 
         gooseProcess.on("close", (code) => {
@@ -128,16 +166,20 @@ function GooseResult({ query, goosePath }: GooseResultProps) {
             });
             speakOutput(stdoutData);
           } else {
+            const friendlyError = getFriendlyErrorMessage(stderrData);
             showToast({
               style: Toast.Style.Failure,
               title: `Goose exited with code ${code}`,
-              message: stderrData ? "Check output for errors" : undefined,
+              message: friendlyError ? "Check output for suggestions" : "Check output for errors",
             });
-            setMarkdown(
-              (prev) =>
-                prev +
-                `\n\n---\n\n**Process exited with code ${code}**\n\n${stderrData ? `**stderr:**\n\`\`\`\n${stderrData}\n\`\`\`\n` : ""}`,
-            );
+
+            if (!friendlyError) {
+              setMarkdown(
+                (prev) =>
+                  prev +
+                  `\n\n---\n\n**Process exited with code ${code}**\n\n${stderrData ? `**stderr:**\n\`\`\`\n${stderrData}\n\`\`\`\n` : ""}`,
+              );
+            }
           }
         });
 
@@ -192,6 +234,19 @@ function GooseResult({ query, goosePath }: GooseResultProps) {
     }
   };
 
+  const handleResetCache = async () => {
+    const toast = await showToast({
+      style: Toast.Style.Animated,
+      title: "Resetting binary cache...",
+    });
+
+    await clearGoosePathCache();
+
+    toast.style = Toast.Style.Success;
+    toast.title = "Binary cache cleared";
+    toast.message = "Reload the command to detect the binary again";
+  };
+
   return (
     <Detail
       markdown={markdown}
@@ -202,8 +257,15 @@ function GooseResult({ query, goosePath }: GooseResultProps) {
           {errorOutput && <Action.CopyToClipboard title="Copy Errors" content={errorOutput} />}
           <Action
             title="Stop Goose"
+            icon={Icon.XMarkCircle}
             onAction={handleStopGoose}
             shortcut={{ modifiers: ["cmd", "shift"], key: "x" }}
+          />
+          <Action
+            title="Reset Binary Cache"
+            icon={Icon.Trash}
+            onAction={handleResetCache}
+            shortcut={{ modifiers: ["cmd", "shift"], key: "r" }}
           />
         </ActionPanel>
       }
@@ -227,11 +289,30 @@ function AskGooseForm({ goosePath }: { goosePath: string }) {
     push(<GooseResult query={query} goosePath={goosePath} />);
   };
 
+  const handleResetCache = async () => {
+    const toast = await showToast({
+      style: Toast.Style.Animated,
+      title: "Resetting binary cache...",
+    });
+
+    await clearGoosePathCache();
+
+    toast.style = Toast.Style.Success;
+    toast.title = "Binary cache cleared";
+    toast.message = "Reload the command to detect the binary again";
+  };
+
   return (
     <Form
       actions={
         <ActionPanel>
-          <Action.SubmitForm title="Ask Goose" onSubmit={handleSubmit} />
+          <Action.SubmitForm title="Ask Goose" onSubmit={handleSubmit} icon={Icon.Message} />
+          <Action
+            title="Reset Binary Cache"
+            icon={Icon.Trash}
+            onAction={handleResetCache}
+            shortcut={{ modifiers: ["cmd", "shift"], key: "r" }}
+          />
         </ActionPanel>
       }
     >
@@ -254,7 +335,7 @@ export default function Command({ arguments: args }: LaunchProps<{ arguments: Ar
 
   const query = args.query || "";
 
-  // Find goose binary on mount
+  // Find goose binary on mount (uses cache)
   useEffect(() => {
     findGooseBinary()
       .then((path) => {
@@ -274,9 +355,28 @@ export default function Command({ arguments: args }: LaunchProps<{ arguments: Ar
   }
 
   if (error) {
+    const handleResetCache = async () => {
+      await clearGoosePathCache();
+      await showToast({
+        style: Toast.Style.Success,
+        title: "Cache cleared",
+        message: "Reload the command to search again",
+      });
+    };
+
     return (
       <Detail
         markdown={`# Error\n\n${error}\n\n## Installation\n\nInstall Goose via pip:\n\`\`\`\npip install goose-ai\n\`\`\`\n\nOr configure a custom path in Raycast preferences.`}
+        actions={
+          <ActionPanel>
+            <Action
+              title="Reset Binary Cache"
+              icon={Icon.Trash}
+              onAction={handleResetCache}
+              shortcut={{ modifiers: ["cmd", "shift"], key: "r" }}
+            />
+          </ActionPanel>
+        }
       />
     );
   }
