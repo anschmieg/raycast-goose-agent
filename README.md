@@ -32,13 +32,15 @@ pip install goose-ai
 
 The extension will automatically detect Goose in these locations (in order of preference):
 - `$HOME/.local/bin/goose` (common pip user install)
-- `$HOME/Library/Python/3.*/bin/goose` (macOS pip user install)
+- `$HOME/Library/Python/3.11/bin/goose` (macOS pip user install, Python 3.11)
+- `$HOME/Library/Python/3.10/bin/goose` (macOS pip user install, Python 3.10)
+- `$HOME/Library/Python/3.9/bin/goose` (macOS pip user install, Python 3.9)
 - `/opt/homebrew/bin/goose` (Homebrew on Apple Silicon)
 - `/usr/local/bin/goose` (Homebrew on Intel or system install)
 - `/usr/bin/goose` (system install)
 - `goose` in your `PATH`
 
-**Note:** The extension validates each binary to ensure it's the Goose AI agent and not the Go database migration tool with the same name.
+**Note:** The extension validates each binary to ensure it responds to `--version` properly.
 
 ## Usage
 

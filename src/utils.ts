@@ -1,8 +1,10 @@
 import { execFile } from "child_process";
 import { promisify } from "util";
+import { access, constants } from "fs";
 import { getPreferenceValues } from "@raycast/api";
 
 const execFileAsync = promisify(execFile);
+const accessAsync = promisify(access);
 
 interface Preferences {
   goosePath?: string;
@@ -16,17 +18,27 @@ export async function validateGooseBinary(binaryPath: string): Promise<boolean> 
   try {
     const { stdout, stderr } = await execFileAsync(binaryPath, ["--version"]);
     const output = (stdout + stderr).toLowerCase();
-    
-    // The AI agent should mention "goose" in its version output
-    // The Go migration tool will have different output
-    // We're looking for the AI agent, not the database migration tool
+
     console.log(`Goose version check for ${binaryPath}:`, output);
-    
-    // Basic validation - if it responds to --version without error, it's likely usable
-    // More specific validation could be added based on actual output patterns
-    return true;
+
+    // Simple validation for now - just check it responds to --version
+    // Could add more specific checks based on actual output patterns
+    // e.g., check for "goose" or specific version format
+    return output.length > 0;
   } catch (error) {
     console.error(`Failed to validate goose binary at ${binaryPath}:`, error);
+    return false;
+  }
+}
+
+/**
+ * Check if a file exists and is executable
+ */
+async function isExecutable(path: string): Promise<boolean> {
+  try {
+    await accessAsync(path, constants.X_OK);
+    return true;
+  } catch {
     return false;
   }
 }
@@ -37,21 +49,28 @@ export async function validateGooseBinary(binaryPath: string): Promise<boolean> 
  */
 export async function findGooseBinary(): Promise<string> {
   const preferences = getPreferenceValues<Preferences>();
-  
+
   // If user has configured a custom path, use that first
   if (preferences.goosePath) {
-    const isValid = await validateGooseBinary(preferences.goosePath);
-    if (isValid) {
-      console.log(`Using user-configured goose path: ${preferences.goosePath}`);
-      return preferences.goosePath;
+    const isExec = await isExecutable(preferences.goosePath);
+    if (isExec) {
+      const isValid = await validateGooseBinary(preferences.goosePath);
+      if (isValid) {
+        console.log(`Using user-configured goose path: ${preferences.goosePath}`);
+        return preferences.goosePath;
+      }
+      console.warn(`User-configured goose path ${preferences.goosePath} failed validation`);
     }
-    console.warn(`User-configured goose path ${preferences.goosePath} failed validation`);
   }
 
   // Common pip installation paths - prefer these over system paths
+  // Check specific Python versions instead of wildcards
+  const homeDir = process.env.HOME || "";
   const pipPaths = [
-    `${process.env.HOME}/.local/bin/goose`,
-    `${process.env.HOME}/Library/Python/3.*/bin/goose`,
+    `${homeDir}/.local/bin/goose`,
+    `${homeDir}/Library/Python/3.11/bin/goose`,
+    `${homeDir}/Library/Python/3.10/bin/goose`,
+    `${homeDir}/Library/Python/3.9/bin/goose`,
     "/opt/homebrew/bin/goose",
   ];
 
@@ -61,16 +80,13 @@ export async function findGooseBinary(): Promise<string> {
   const allPaths = [...pipPaths, ...systemPaths];
 
   for (const path of allPaths) {
-    try {
-      // Check if file exists and is executable
-      const { stdout } = await execFileAsync("test", ["-x", path]);
+    const isExec = await isExecutable(path);
+    if (isExec) {
       const isValid = await validateGooseBinary(path);
       if (isValid) {
         console.log(`Found valid goose binary at: ${path}`);
         return path;
       }
-    } catch {
-      // Binary not found or not valid, try next
     }
   }
 

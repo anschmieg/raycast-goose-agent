@@ -26,19 +26,21 @@ async function killGooseProcesses() {
     const { stdout } = await execFileAsync("pgrep", ["-f", "goose run"]);
     const pids = stdout.trim().split("\n").filter(Boolean);
 
+    let killedCount = 0;
     for (const pid of pids) {
       try {
         // Validate PID is a number before killing
         const numPid = parseInt(pid.trim(), 10);
         if (!isNaN(numPid) && numPid > 0) {
-          await execFileAsync("kill", [numPid.toString()]);
+          process.kill(numPid);
+          killedCount++;
         }
       } catch {
-        // Process may have already exited
+        // Process may have already exited or we don't have permission
       }
     }
 
-    return pids.length;
+    return killedCount;
   } catch {
     // No processes found
     return 0;
