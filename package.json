@@ -37,6 +37,16 @@
       "mode": "view"
     }
   ],
+  "preferences": [
+    {
+      "name": "goosePath",
+      "type": "textfield",
+      "required": false,
+      "title": "Custom Goose Path",
+      "description": "Path to the Goose AI binary (leave empty for auto-detection)",
+      "placeholder": "/path/to/goose"
+    }
+  ],
   "dependencies": {
     "@raycast/api": "^1.104.1",
     "@raycast/utils": "^1.17.0"

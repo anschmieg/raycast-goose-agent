@@ -1,10 +1,10 @@
 import { List, ActionPanel, Action, showToast, Toast, Icon, Color, Form } from "@raycast/api";
 import { useState, useEffect } from "react";
-import { exec } from "child_process";
+import { execFile, spawn } from "child_process";
 import { promisify } from "util";
-import { escapeShellArg, findGooseBinary } from "./utils";
+import { findGooseBinary } from "./utils";
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 interface Session {
   id: string;
@@ -39,16 +39,44 @@ function ResumeSessionForm({ sessionId, goosePath, onResume }: ResumeSessionProp
     });
 
     try {
-      const command = `${goosePath} run --session-id ${escapeShellArg(sessionId)} --resume --text ${escapeShellArg(input)}`;
-      await execAsync(command, {
-        timeout: 300000, // 5 minute timeout
+      // Use spawn with args array to avoid shell interpretation issues
+      const args = ["run", "--session-id", sessionId, "--resume", "--text", input];
+
+      console.log(`Executing: ${goosePath} ${args.join(" ")}`);
+
+      const gooseProcess = spawn(goosePath, args, {
+        env: { ...process.env },
       });
 
-      toast.style = Toast.Style.Success;
-      toast.title = "Session resumed";
-      toast.message = "Check terminal or logs for output";
+      let stdoutData = "";
+      let stderrData = "";
 
-      onResume();
+      gooseProcess.stdout.on("data", (data) => {
+        stdoutData += data.toString();
+      });
+
+      gooseProcess.stderr.on("data", (data) => {
+        stderrData += data.toString();
+      });
+
+      gooseProcess.on("close", (code) => {
+        if (code === 0) {
+          toast.style = Toast.Style.Success;
+          toast.title = "Session resumed";
+          toast.message = "Check output for results";
+          onResume();
+        } else {
+          toast.style = Toast.Style.Failure;
+          toast.title = `Failed with exit code ${code}`;
+          toast.message = stderrData || "Check logs for details";
+        }
+      });
+
+      gooseProcess.on("error", (err) => {
+        toast.style = Toast.Style.Failure;
+        toast.title = "Failed to start Goose";
+        toast.message = err.message;
+      });
     } catch (error) {
       toast.style = Toast.Style.Failure;
       toast.title = "Failed to resume session";
@@ -72,6 +100,7 @@ function ResumeSessionForm({ sessionId, goosePath, onResume }: ResumeSessionProp
         onChange={setInput}
       />
       <Form.Description text={`Resuming session: ${sessionId}`} />
+      <Form.Description text={`Using Goose at: ${goosePath}`} />
     </Form>
   );
 }
@@ -85,9 +114,13 @@ export default function Command() {
   // Find goose binary on mount
   useEffect(() => {
     findGooseBinary()
-      .then(setGoosePath)
-      .catch(() => {
-        setError("Goose binary not found. Please ensure Goose is installed.");
+      .then((path) => {
+        console.log(`Found Goose binary: ${path}`);
+        setGoosePath(path);
+      })
+      .catch((err) => {
+        console.error("Failed to find Goose binary:", err);
+        setError(err instanceof Error ? err.message : "Goose binary not found");
         setIsLoading(false);
       });
   }, []);
@@ -100,8 +133,16 @@ export default function Command() {
       setIsLoading(true);
 
       try {
-        const command = `${goosePath} session list --format json`;
-        const { stdout } = await execAsync(command);
+        // Use execFile with args array
+        const args = ["session", "list", "--format", "json"];
+
+        console.log(`Executing: ${goosePath} ${args.join(" ")}`);
+
+        const { stdout, stderr } = await execFileAsync(goosePath, args);
+
+        if (stderr) {
+          console.warn("Goose session list stderr:", stderr);
+        }
 
         // Parse the JSON output
         const parsed = JSON.parse(stdout.trim() || "[]");
@@ -111,7 +152,8 @@ export default function Command() {
         setError(null);
       } catch (err) {
         console.error("Failed to fetch sessions:", err);
-        setError(err instanceof Error ? err.message : "Failed to fetch sessions");
+        const errorMsg = err instanceof Error ? err.message : "Failed to fetch sessions";
+        setError(errorMsg);
         setSessions([]);
       } finally {
         setIsLoading(false);
@@ -157,8 +199,12 @@ export default function Command() {
     });
 
     try {
-      const command = `${goosePath} session list --format json`;
-      const { stdout } = await execAsync(command);
+      const args = ["session", "list", "--format", "json"];
+      const { stdout, stderr } = await execFileAsync(goosePath, args);
+
+      if (stderr) {
+        console.warn("Goose session list stderr:", stderr);
+      }
 
       const parsed = JSON.parse(stdout.trim() || "[]");
       const sessionList = Array.isArray(parsed) ? parsed : [parsed];
@@ -223,7 +269,9 @@ export default function Command() {
                 <Action.Push
                   title="Resume Session"
                   icon={Icon.Play}
-                  target={<ResumeSessionForm sessionId={session.id} goosePath={goosePath} onResume={refreshSessions} />}
+                  target={
+                    <ResumeSessionForm sessionId={session.id} goosePath={goosePath} onResume={refreshSessions} />
+                  }
                 />
                 <Action.CopyToClipboard title="Copy Session ID" content={session.id} />
                 <Action title="Refresh" onAction={refreshSessions} shortcut={{ modifiers: ["cmd"], key: "r" }} />

@@ -5,15 +5,22 @@ A Raycast extension that provides a GUI bridge for the [Goose CLI Agent](https:/
 ## Features
 
 ### Ask Goose Command
+- **Form-based input**: Type your question directly in the Raycast interface (or use deeplinks)
 - **Real-time streaming**: See Goose's thoughts and tool calls as they happen
 - **Voice feedback**: Hear the final output using macOS `say` command
-- **Kill switch**: Stop runaway Goose processes with Cmd+K
+- **Kill switch**: Stop runaway Goose processes with Cmd+Shift+X
 - **Deeplink support**: Integrate with other tools using Raycast deeplinks
+- **Comprehensive diagnostics**: See the exact command being run and all output (stdout/stderr)
 
 ### Session Management
 - **List sessions**: View all your previous Goose interactions
 - **Resume sessions**: Continue previous conversations with new input
 - **Session metadata**: See session IDs, dates, and last prompts
+
+### Configuration
+- **Auto-detection**: Automatically finds the pip-installed Goose binary
+- **Custom path**: Configure a custom Goose binary path in preferences
+- **Binary validation**: Ensures you're using the AI agent, not the Go migration tool
 
 ## Prerequisites
 
@@ -23,20 +30,28 @@ Goose must be installed on your system. Install it via:
 pip install goose-ai
 ```
 
-The extension will automatically detect Goose in these locations:
-- `/usr/local/bin/goose`
-- `/opt/homebrew/bin/goose`
-- `/usr/bin/goose`
-- Or anywhere in your `PATH`
+The extension will automatically detect Goose in these locations (in order of preference):
+- `$HOME/.local/bin/goose` (common pip user install)
+- `$HOME/Library/Python/3.*/bin/goose` (macOS pip user install)
+- `/opt/homebrew/bin/goose` (Homebrew on Apple Silicon)
+- `/usr/local/bin/goose` (Homebrew on Intel or system install)
+- `/usr/bin/goose` (system install)
+- `goose` in your `PATH`
+
+**Note:** The extension validates each binary to ensure it's the Goose AI agent and not the Go database migration tool with the same name.
 
 ## Usage
 
 ### Ask Goose
 1. Open Raycast (Cmd+Space or your configured hotkey)
 2. Type "Ask Goose"
-3. Enter your query
+3. Enter your query in the form
 4. Watch as Goose processes your request in real-time
 5. Hear the final output spoken aloud
+
+**Or use a deeplink:**
+- Provide the query as an argument via deeplink (see below)
+- The result will appear immediately without showing the form
 
 ### Deeplink Integration
 
@@ -56,8 +71,15 @@ This is particularly useful for integration with voice assistants like Spokenly.
 
 ### Stop Goose
 If Goose gets stuck in a loop or you want to interrupt it:
-1. While in the "Ask Goose" view, press Cmd+K
+1. While in the "Ask Goose" result view, press Cmd+Shift+X
 2. Or select "Stop Goose" from the action panel
+
+### Custom Binary Path
+If Goose is installed in a non-standard location:
+1. Open Raycast Settings (⌘,)
+2. Go to Extensions → Goose Bridge
+3. Set the "Custom Goose Path" preference
+4. The extension will use this path first
 
 ## Installation & Setup
 
