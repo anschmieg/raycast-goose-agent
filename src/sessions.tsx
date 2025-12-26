@@ -37,6 +37,15 @@ interface ResumeResultProps {
   goosePath: string;
 }
 
+const GOOSE_PANIC_ERROR_MESSAGE = `**Goose Panic (exit code 101)**
+
+This usually means Goose encountered an unexpected error. The panic details are shown above.
+
+**Troubleshooting:**
+- Ensure you're using a recent version of Goose
+- Try resetting the session or starting a new one
+- Check the Goose logs for more details`;
+
 function ResumeResult({ sessionId, input, goosePath }: ResumeResultProps) {
   const [markdown, setMarkdown] = useState<string>("# Resuming Session\n\nInitializing...");
   const [isLoading, setIsLoading] = useState(true);
@@ -94,9 +103,9 @@ function ResumeResult({ sessionId, input, goosePath }: ResumeResultProps) {
           stderrData += text;
           setErrorOutput((prev) => prev + text);
 
-          // Check for panic (exit code 101)
+          // Log panic detection (exit code 101 is the definitive indicator)
           if (text.includes("panicked at") || text.includes("RUST_BACKTRACE")) {
-            console.error("Goose panic detected:", text);
+            console.error("Goose panic detected in stderr:", text.substring(0, 200));
           }
 
           setMarkdown((prev) => prev + `\n\n**Error/Warning:**\n\`\`\`\n${text}\n\`\`\`\n\n`);
@@ -120,7 +129,7 @@ function ResumeResult({ sessionId, input, goosePath }: ResumeResultProps) {
               title: "Session resumed successfully",
             });
           } else if (code === 101) {
-            // Goose panic
+            // Goose panic - exit code 101 is the definitive indicator
             showToast({
               style: Toast.Style.Failure,
               title: "Goose panicked (exit code 101)",
@@ -129,7 +138,7 @@ function ResumeResult({ sessionId, input, goosePath }: ResumeResultProps) {
             setMarkdown(
               (prev) =>
                 prev +
-                `\n\n---\n\n**Goose Panic (exit code 101)**\n\nThis usually means Goose encountered an unexpected error. The panic details are shown above.\n\n**Troubleshooting:**\n- Ensure you're using a recent version of Goose\n- Try resetting the session or starting a new one\n- Check the Goose logs for more details\n\n${stderrData ? `**Full stderr:**\n\`\`\`\n${stderrData}\n\`\`\`\n` : ""}`,
+                `\n\n---\n\n${GOOSE_PANIC_ERROR_MESSAGE}\n\n${stderrData ? `**Full stderr:**\n\`\`\`\n${stderrData}\n\`\`\`\n` : ""}`,
             );
           } else {
             showToast({

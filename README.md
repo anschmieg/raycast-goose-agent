@@ -135,7 +135,7 @@ If resuming a session causes a panic with "NotConnected" or similar errors:
 This has been fixed in the latest version by using stdin pipe for non-interactive input. If you still see this:
 
 1. Ensure you're using the latest version of this extension
-2. Check that RUST_BACKTRACE diagnostics in the error output
+2. Check the RUST_BACKTRACE diagnostics in the error output
 3. Try starting a fresh session instead of resuming
 4. Check Goose logs for more details
 
