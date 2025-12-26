@@ -129,6 +129,26 @@ The configured AI model is unavailable:
 2. Update to a different model that's currently available
 3. See the Goose AI documentation for supported models
 
+### Session resume panics (exit code 101)
+If resuming a session causes a panic with "NotConnected" or similar errors:
+
+This has been fixed in the latest version by using stdin pipe for non-interactive input. If you still see this:
+
+1. Ensure you're using the latest version of this extension
+2. Check that RUST_BACKTRACE diagnostics in the error output
+3. Try starting a fresh session instead of resuming
+4. Check Goose logs for more details
+
+### Sessions show "No messages"
+If sessions appear in the list but show "No messages":
+
+The extension logs detailed debugging information about what it receives from Goose. Check the Raycast logs to see:
+- How many messages each session reports
+- What keys are present in the session data
+- Any warnings about empty or missing message arrays
+
+This may indicate your Goose version uses a different session format. Future updates will add support for additional formats.
+
 ## Installation & Setup
 
 ### For End Users
