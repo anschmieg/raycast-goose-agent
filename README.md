@@ -140,14 +140,14 @@ This has been fixed in the latest version by using stdin pipe for non-interactiv
 4. Check Goose logs for more details
 
 ### Sessions show "No messages"
-If sessions appear in the list but show "No messages":
+**Note**: The `goose session list` command doesn't include message content in its JSON output - it only returns metadata like session name, timestamps, and working directory.
 
-The extension logs detailed debugging information about what it receives from Goose. Check the Raycast logs to see:
-- How many messages each session reports
-- What keys are present in the session data
-- Any warnings about empty or missing message arrays
+The extension now displays the session name (e.g., "User greeting session") instead of "No messages" to provide more meaningful context. If you see "User session" or "Session" as the subtitle, this means:
+- The session list was fetched successfully
+- The session doesn't have a custom name set
+- Message content is not available via the list command
 
-This may indicate your Goose version uses a different session format. Future updates will add support for additional formats.
+To view actual session content, use the "Resume Session" action which will show the full conversation history when you send a new message.
 
 ## Installation & Setup
 
