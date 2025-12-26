@@ -51,17 +51,31 @@ function ResumeResult({ sessionId, input, goosePath }: ResumeResultProps) {
       );
 
       try {
-        // Use spawn with args array to avoid shell interpretation issues
-        const args = ["run", "--session-id", sessionId, "--resume", "--text", input];
+        // The issue: Goose tries to read from stdin in interactive mode, causing "NotConnected" panic
+        // Solution: Use stdin pipe to provide input non-interactively
+        const args = ["run", "--session-id", sessionId, "--resume"];
 
-        console.log(`Executing: ${goosePath} ${args.join(" ")}`);
+        console.log(`Executing: ${goosePath} ${args.join(" ")} (with stdin: "${input}")`);
 
+        // Set RUST_BACKTRACE for better diagnostics if it panics
         const gooseProcess = spawn(goosePath, args, {
-          env: { ...process.env },
+          env: { ...process.env, RUST_BACKTRACE: "1" },
+          stdio: ["pipe", "pipe", "pipe"], // Explicitly set stdin as pipe
         });
 
         let stdoutData = "";
         let stderrData = "";
+        let processStarted = false;
+
+        // Write input to stdin and close it to signal end of input
+        try {
+          gooseProcess.stdin.write(input + "\n");
+          gooseProcess.stdin.end();
+          processStarted = true;
+        } catch (err) {
+          console.error("Failed to write to stdin:", err);
+          throw new Error(`Failed to send input to Goose: ${err instanceof Error ? err.message : "Unknown error"}`);
+        }
 
         gooseProcess.stdout.on("data", (data) => {
           const text = data.toString();
@@ -79,10 +93,25 @@ function ResumeResult({ sessionId, input, goosePath }: ResumeResultProps) {
           const text = data.toString();
           stderrData += text;
           setErrorOutput((prev) => prev + text);
+
+          // Check for panic (exit code 101)
+          if (text.includes("panicked at") || text.includes("RUST_BACKTRACE")) {
+            console.error("Goose panic detected:", text);
+          }
+
           setMarkdown((prev) => prev + `\n\n**Error/Warning:**\n\`\`\`\n${text}\n\`\`\`\n\n`);
         });
 
+        // Add timeout to prevent hanging
+        const timeout = setTimeout(() => {
+          if (processStarted && !gooseProcess.killed) {
+            console.warn("Goose process timeout, killing...");
+            gooseProcess.kill();
+          }
+        }, 30000); // 30 second timeout
+
         gooseProcess.on("close", (code) => {
+          clearTimeout(timeout);
           setIsLoading(false);
 
           if (code === 0) {
@@ -90,6 +119,18 @@ function ResumeResult({ sessionId, input, goosePath }: ResumeResultProps) {
               style: Toast.Style.Success,
               title: "Session resumed successfully",
             });
+          } else if (code === 101) {
+            // Goose panic
+            showToast({
+              style: Toast.Style.Failure,
+              title: "Goose panicked (exit code 101)",
+              message: "Check output for panic details",
+            });
+            setMarkdown(
+              (prev) =>
+                prev +
+                `\n\n---\n\n**Goose Panic (exit code 101)**\n\nThis usually means Goose encountered an unexpected error. The panic details are shown above.\n\n**Troubleshooting:**\n- Ensure you're using a recent version of Goose\n- Try resetting the session or starting a new one\n- Check the Goose logs for more details\n\n${stderrData ? `**Full stderr:**\n\`\`\`\n${stderrData}\n\`\`\`\n` : ""}`,
+            );
           } else {
             showToast({
               style: Toast.Style.Failure,
@@ -105,6 +146,7 @@ function ResumeResult({ sessionId, input, goosePath }: ResumeResultProps) {
         });
 
         gooseProcess.on("error", (err) => {
+          clearTimeout(timeout);
           setIsLoading(false);
           showToast({
             style: Toast.Style.Failure,
@@ -188,6 +230,36 @@ function ResumeSessionForm({ sessionId, goosePath, onResume }: ResumeSessionProp
   );
 }
 
+/**
+ * Fetch detailed session information including messages
+ * The `session list` command may not include full message data,
+ * so we try to get more details per session
+ */
+async function fetchSessionWithDetails(goosePath: string, sessionId: string): Promise<Session | null> {
+  try {
+    // Try to get session details - this may vary by Goose version
+    // Some versions support: goose session show <id>
+    // For now, we'll rely on the list output but log what we get
+    const args = ["session", "list", "--format", "json"];
+    const { stdout } = await execFileAsync(goosePath, args, { timeout: SESSION_COMMAND_TIMEOUT });
+
+    const parsed = JSON.parse(stdout.trim() || "[]");
+    const sessionList = Array.isArray(parsed) ? parsed : [parsed];
+
+    // Find the session by ID
+    const session = sessionList.find((s: Session) => s.id === sessionId);
+    if (session) {
+      console.log(`Session ${sessionId} details:`, JSON.stringify(session, null, 2));
+      return session;
+    }
+
+    return null;
+  } catch (error) {
+    console.error(`Failed to fetch details for session ${sessionId}:`, error);
+    return null;
+  }
+}
+
 export default function Command() {
   const [goosePath, setGoosePath] = useState<string>("");
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -252,10 +324,27 @@ export default function Command() {
                 sessionList = [parsed];
               }
             }
+
+            // Log what we got to help debug the "No messages" issue
+            console.log(`Fetched ${sessionList.length} sessions`);
+            sessionList.forEach((session, idx) => {
+              const messageCount = session.messages?.length || 0;
+              console.log(
+                `Session ${idx}: id=${session.id}, messages=${messageCount}, keys=${Object.keys(session).join(",")}`,
+              );
+              if (messageCount === 0 && session.messages) {
+                console.warn(`Session ${session.id} has empty messages array`);
+              }
+              if (!session.messages) {
+                console.warn(`Session ${session.id} has no messages property at all`);
+              }
+            });
           } catch (parseError) {
             console.error("Failed to parse session JSON:", parseError);
             console.error("Raw output:", trimmed);
-            throw new Error(`Failed to parse sessions JSON: ${parseError instanceof Error ? parseError.message : "Unknown parse error"}`);
+            throw new Error(
+              `Failed to parse sessions JSON: ${parseError instanceof Error ? parseError.message : "Unknown parse error"}`,
+            );
           }
         }
 
@@ -277,6 +366,8 @@ export default function Command() {
 
   const getLastPrompt = (session: Session): string => {
     if (!session.messages || session.messages.length === 0) {
+      // Log this case for debugging
+      console.log(`Session ${session.id}: No messages found (messages=${session.messages})`);
       return "No messages";
     }
 
@@ -288,7 +379,7 @@ export default function Command() {
       }
     }
 
-    return "No user messages";
+    return `${session.messages.length} messages (no user messages)`;
   };
 
   const formatDate = (dateStr?: string): string => {
@@ -428,7 +519,12 @@ export default function Command() {
                   }
                 />
                 <Action.CopyToClipboard title="Copy Session ID" content={session.id} icon={Icon.Clipboard} />
-                <Action title="Refresh" onAction={refreshSessions} icon={Icon.Repeat} shortcut={{ modifiers: ["cmd"], key: "r" }} />
+                <Action
+                  title="Refresh"
+                  onAction={refreshSessions}
+                  icon={Icon.Repeat}
+                  shortcut={{ modifiers: ["cmd"], key: "r" }}
+                />
                 <Action
                   title="Reset Binary Cache"
                   icon={Icon.Trash}
