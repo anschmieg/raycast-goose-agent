@@ -20,9 +20,13 @@ const execFileAsync = promisify(execFile);
 interface Session {
   id: string;
   name?: string;
+  user_set_name?: boolean;
+  session_type?: string;
+  working_dir?: string;
   created_at?: string;
   updated_at?: string;
-  messages?: Array<{ role: string; content: string }>;
+  extension_data?: Record<string, unknown>;
+  messages?: Array<{ role: string; content: string }>; // Not included in 'session list' output
 }
 
 interface ResumeSessionProps {
@@ -334,20 +338,24 @@ export default function Command() {
               }
             }
 
-            // Log what we got to help debug the "No messages" issue
-            console.log(`Fetched ${sessionList.length} sessions`);
-            sessionList.forEach((session, idx) => {
-              const messageCount = session.messages?.length || 0;
-              console.log(
-                `Session ${idx}: id=${session.id}, messages=${messageCount}, keys=${Object.keys(session).join(",")}`,
-              );
-              if (messageCount === 0 && session.messages) {
-                console.warn(`Session ${session.id} has empty messages array`);
-              }
-              if (!session.messages) {
-                console.warn(`Session ${session.id} has no messages property at all`);
-              }
-            });
+            // Log what we got to help debug
+            console.log(`Fetched ${sessionList.length} sessions from Goose`);
+            if (sessionList.length > 0) {
+              console.log(`Sample session structure:`, {
+                id: sessionList[0].id,
+                name: sessionList[0].name,
+                session_type: sessionList[0].session_type,
+                has_messages: !!sessionList[0].messages,
+                keys: Object.keys(sessionList[0]),
+              });
+              
+              // Note: 'session list' doesn't include message content
+              sessionList.forEach((session, idx) => {
+                if (session.messages && session.messages.length > 0) {
+                  console.log(`Unexpected: Session ${idx} (${session.id}) has messages in list output!`);
+                }
+              });
+            }
           } catch (parseError) {
             console.error("Failed to parse session JSON:", parseError);
             console.error("Raw output:", trimmed);
@@ -374,13 +382,20 @@ export default function Command() {
   }, [goosePath]);
 
   const getLastPrompt = (session: Session): string => {
+    // Note: The 'session list' command doesn't return message content
+    // It only returns metadata like name, timestamps, etc.
+    // To get messages, we'd need a separate 'session show <id>' command
+    
     if (!session.messages || session.messages.length === 0) {
-      // Log this case for debugging
-      console.log(`Session ${session.id}: No messages found (messages=${session.messages})`);
-      return "No messages";
+      // Since session list doesn't include messages, show the session name as context
+      if (session.name && !session.name.startsWith(session.id)) {
+        return session.name;
+      }
+      // If no meaningful name, show type or default text
+      return session.session_type === "user" ? "User session" : "Session";
     }
 
-    // Find the last user message
+    // If messages are somehow available, find the last user message
     for (let i = session.messages.length - 1; i >= 0; i--) {
       const msg = session.messages[i];
       if (msg && msg.role === "user" && msg.content) {
@@ -388,7 +403,7 @@ export default function Command() {
       }
     }
 
-    return `${session.messages.length} messages (no user messages)`;
+    return `${session.messages.length} messages`;
   };
 
   const formatDate = (dateStr?: string): string => {
