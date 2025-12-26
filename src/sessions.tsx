@@ -65,8 +65,8 @@ function ResumeResult({ sessionId, input, goosePath }: ResumeResultProps) {
 
       try {
         // The issue: Goose tries to read from stdin in interactive mode, causing "NotConnected" panic
-        // Solution: Use stdin pipe to provide input non-interactively
-        const args = ["run", "--session-id", sessionId, "--resume"];
+        // Solution: Use -i - flag to explicitly tell Goose to read from stdin non-interactively
+        const args = ["run", "--session-id", sessionId, "--resume", "-i", "-"];
 
         console.log(`Executing: ${goosePath} ${args.join(" ")} (with stdin: "${input}")`);
 
